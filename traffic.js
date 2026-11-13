@@ -108,7 +108,7 @@ function update(dt){
   if(a.d<0||a.d>a.p.total){a.d=a.dir===1?0:a.p.total;a.served.clear();a.wait=a.kind==='train'?18:a.kind==='bus'?10:rand()*3;if(motor(a))a.pending=true;}
  }
 }
-function transform(){img.style.transform=`translate(${tx}px,${ty}px) scale(${scale})`;}
+function transform(){img.style.transform=`translate(${tx}px,${ty}px) scale(${scale})`;window.updateMapTiles(scale,tx,ty);}
 function focus(x,y,s){scale=s;tx=innerWidth/2-x*s;ty=innerHeight/2-y*s;transform();}
 let mapZoom=1,panX=0,panY=0;
 function fit(){
@@ -127,6 +127,20 @@ function fit(){
 document.getElementById('map-in').onclick=()=>{mapZoom=clamp(mapZoom+.1,1,1.35);fit();};
 document.getElementById('map-out').onclick=()=>{mapZoom=clamp(mapZoom-.1,1,1.35);fit();};
 document.querySelectorAll('[data-pan]').forEach(b=>b.onclick=()=>{const dir=b.dataset.pan;panX+=({left:-80,right:80}[dir]||0);panY+=({up:-65,down:65}[dir]||0);fit();});
+
+// Finger dragging uses the same limited pan bounds as the arrow controls.
+let drag=null;
+view.addEventListener('pointerdown',e=>{
+ if(!e.isPrimary)return;
+ drag={id:e.pointerId,x:e.clientX,y:e.clientY};view.setPointerCapture(e.pointerId);
+});
+view.addEventListener('pointermove',e=>{
+ if(!drag||e.pointerId!==drag.id)return;
+ panX-=(e.clientX-drag.x)/scale;panY-=(e.clientY-drag.y)/scale;
+ drag.x=e.clientX;drag.y=e.clientY;fit();
+});
+for(const event of ['pointerup','pointercancel','lostpointercapture'])view.addEventListener(event,()=>{drag=null;});
+
 function zoom(cx,cy,f){let n=clamp(scale*f,.09,4);tx=cx-(cx-tx)*n/scale;ty=cy-(cy-ty)*n/scale;scale=n;transform();}
 function resize(){canvas.width=Math.round(innerWidth*devicePixelRatio);canvas.height=Math.round(innerHeight*devicePixelRatio);canvas.style.width=innerWidth+'px';canvas.style.height=innerHeight+'px';}
 function paint(){const dpr=devicePixelRatio;ctx.setTransform(dpr,0,0,dpr,0,0);ctx.clearRect(0,0,innerWidth,innerHeight);ctx.translate(tx,ty);ctx.scale(scale,scale);ctx.imageSmoothingEnabled=false;
@@ -140,8 +154,8 @@ function paint(){const dpr=devicePixelRatio;ctx.setTransform(dpr,0,0,dpr,0,0);ct
  ctx.restore();}
 }
 function frame(t){const dt=Math.min((t-last)/1000,.05);last=t;if(!paused&&!document.hidden)update(dt*speed);paint();requestAnimationFrame(frame);}
-window.addEventListener('resize',()=>{resize();fit();});img.onload=()=>{document.getElementById('loading').hidden=true;fit();};img.onerror=()=>document.getElementById('loading').textContent='The map image could not load. Keep this viewer beside traffic-background.png.';
-resize();if(img.complete&&img.naturalWidth){document.getElementById('loading').hidden=true;fit();}requestAnimationFrame(frame);
+window.addEventListener('resize',()=>{resize();fit();});
+resize();fit();requestAnimationFrame(frame);
 // Deterministic diagnostics for local validation and later route refinement.
 window.tinyTraffic={actors,roads,sample,nearest,update,position,body,overlaps,get clock(){return clock;},get paused(){return paused;},get enabled(){return {...enabled};},get atlasSize(){return atlas.size;},focus,paint};
 })();
